@@ -1,171 +1,130 @@
+<?php
+// Initialize the session
+session_start();
+ 
+// Check if the user is already logged in, if yes then redirect him to welcome page
+if(isset($_SESSION["loggedin"]) && $_SESSION["loggedin"] === true){
+    header("location: public/inventory/user_dashboard.php");
+    exit;
+}
+ 
+// Include config file
+require_once './admin/db/config.php';
+ 
+// Define variables and initialize with empty values
+$username = $password = "";
+$username_err = $password_err = $login_err = "";
+ 
+// Processing form data when form is submitted
+if($_SERVER["REQUEST_METHOD"] == "POST"){
+ 
+    // Check if username is empty
+    if(empty(trim($_POST["username"]))){
+        $username_err = "Please enter username.";
+    } else{
+        $username = trim($_POST["username"]);
+    }
+    
+    // Check if password is empty
+    if(empty(trim($_POST["password"]))){
+        $password_err = "Please enter your password.";
+    } else{
+        $password = trim($_POST["password"]);
+    }
+    
+    // Validate credentials
+    if(empty($username_err) && empty($password_err)){
+        // Prepare a select statement
+        $sql = "SELECT id, username, password FROM users WHERE username = :username";
+        
+        if($stmt = $pdo->prepare($sql)){
+            // Bind variables to the prepared statement as parameters
+            $stmt->bindParam(":username", $param_username, PDO::PARAM_STR);
+            
+            // Set parameters
+            $param_username = trim($_POST["username"]);
+            
+            // Attempt to execute the prepared statement
+            if($stmt->execute()){
+                // Check if username exists, if yes then verify password
+                if($stmt->rowCount() == 1){
+                    if($row = $stmt->fetch()){
+                        $id = $row["id"];
+                        $username = $row["username"];
+                        $hashed_password = $row["password"];
+                        if(password_verify($password, $hashed_password)){
+                            // Password is correct, so start a new session
+                            session_start();
+                            
+                            // Store data in session variables
+                            $_SESSION["loggedin"] = true;
+                            $_SESSION["id"] = $id;
+                            $_SESSION["username"] = $username;                            
+                            
+                            // Redirect user to dashboars page
+                            header("location: ./admin/public/inventory/user_dashboard.php");
+                        } else{
+                            // Password is not valid, display a generic error message
+                            $login_err = "Invalid username or password.";
+                        }
+                    }
+                } else{
+                    // Username doesn't exist, display a generic error message
+                    $login_err = "Invalid username or password.";
+                }
+            } else{
+                echo "Oops! Something went wrong. Please try again later.";
+            }
+
+            // Close statement
+            unset($stmt);
+        }
+    }
+    
+    // Close connection
+    unset($pdo);
+}
+?>
+ 
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Products List</title>
+    <title>Login</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
-    body {
-        font-family: Arial, sans-serif;
-        /* Remove the overflow-x property */
-        /* overflow-x: hidden; */
-        /* Background properties */
-        background-image: url('https://miro.medium.com/v2/resize:fit:1400/format:webp/0*HJtimmyfgd0m9nKz.jpg');
-        background-color: #f8f9fa;
-        background-size: cover;
-        background-position: center;
-        /* Adjusting margin to 0 for the body to remove default margin */
-        margin: 0;
-        /* Ensuring body takes full height of viewport */
-        min-height: 100vh;
-    }
-    
-
-    /* Define a class for the grid */
-    .card-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); /* Responsive grid with minimum item width of 250px */
-        gap: 20px; /* Gap between grid items */
-        padding: 20px; /* Add padding around the grid container */
-        max-width: 1200px; /* Set maximum width */
-        margin: 0 auto; /* Center align the grid */
-        overflow-x: auto; /* Add horizontal scrollbar */
-    }
-
-    /* Style for individual cards */
-    .card {  /* Style for individual cards */
-        width: 100%; /* Ensure cards take full width of their container */
-        background-color: transparent;
-        border: 4px solid #ffffff; 
-        box-shadow: 0 0 10px rgba(138, 43, 226, 0.9);
-
-    }
-
-    .card-img-top{
-        width: 100%; /* Ensure the image fills its container */
-        height: auto; /* Maintain aspect ratio */
-        object-fit: cover; /* Ensure the image covers the entire container */
-    }
-    .card-img-top {
-    width: 100%; /* Ensure the image fills its container */
-    height: 200px; /* Set a fixed height for the images */
-    object-fit: cover; /* Ensure the image covers the entire container */
-}
-
-
-    /* Style for the cart */
-    #cartContainer {
-        position: fixed;
-        top: 4em;
-        right: 20px;
-        background-color: #fff;
-        border: 1px solid #ddd;
-        padding: 10px;
-        box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
-        z-index: 999;
-    }
-    
-    /* Center align the search bar */
-    .search-bar {
-        display: flex;
-        justify-content: center;
-        margin-top: 20px; /* Add some top margin for separation */
-    }
-</style>
-
+        body{ font: 14px sans-serif; }
+        .wrapper{ width: 360px; padding: 20px; }
+    </style>
 </head>
 <body>
+<div class="wrapper" style="margin: 0 auto; text-align: center;">
+    <h2>Login</h2>
+    <p>Please fill in your credentials to login.</p>
 
-<nav class="navbar navbar-expand-lg navbar-light bg-light">
-    <a class="navbar-brand" href="#">
-        <!-- Removed the Bootstrap logo -->
-    </a>
+    <?php 
+    if(!empty($login_err)){
+        echo '<div class="alert alert-danger">' . $login_err . '</div>';
+    }        
+    ?>
 
-        <div class="collapse navbar-collapse" id="navbarSupportedContent">
-            <form class="form-inline my-2 my-lg-0 ml-auto">
-                <input class="form-control mr-sm-2" type="search" placeholder="Search" aria-label="Search">
-                <button class="btn btn-outline-success my-2 my-sm-0" type="submit">Search</button>
-            </form>
+    <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post" style="text-align: left;">
+        <div class="form-group">
+            <label>Username</label>
+            <input type="text" name="username" class="form-control <?php echo (!empty($username_err)) ? 'is-invalid' : ''; ?>" value="<?php echo $username; ?>">
+            <span class="invalid-feedback"><?php echo $username_err; ?></span>
+        </div>    
+        <div class="form-group">
+            <label>Password</label>
+            <input type="password" name="password" class="form-control <?php echo (!empty($password_err)) ? 'is-invalid' : ''; ?>">
+            <span class="invalid-feedback"><?php echo $password_err; ?></span>
         </div>
-    </nav>
-
-    <div id="productsDisplay" class="card-grid"></div>
-    <div id="cartContainer"></div>
-
-    <div class="modal fade" id="productModal" tabindex="-1" role="dialog" aria-labelledby="productModalLabel" aria-hidden="true">
-        <div class="modal-dialog" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="productModalLabel">Product Details</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-                <div class="modal-body" id="modalBody"></div>
-                <div class="modal-footer">
-                    <a id="paymentLink" class="btn btn-primary" href="#">Proceed to Payment</a>
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                </div>
-            </div>
+        <div class="form-group">
+            <input type="submit" class="btn btn-primary" value="Login">
         </div>
-    </div>
+        <p>Don't have an account? <a href="./admin/public/user/register.php">Sign up now</a>.</p>
+    </form>
+</div>
 
-    <script>
-        fetch('./products/products-api.php')
-            .then(response => response.json())
-            .then(data => {
-                const productsContainer = document.getElementById('productsDisplay');
-                data.forEach(product => {
-                    const cardHTML = `
-                    <div class="card" style="width: 18rem;">
-                        <img class="card-img-top" src="${product.img}">
-                        <div class="card-body">
-                            <h5 class="card-title">${product.title}</h5>
-                            <span class="price">Price: ₱${product.rrp}</span>
-                            <p class="card-text">${product.description}</p>
-                            <p class="card-text">Quantity: ${product.quantity}</p>
-                            <button class="btn btn-success" onclick="showProductModal('${product.title}', '${product.rrp}')">
-                                <i class="fas fa-cart-plus"></i> Add to Cart
-                            </button>
-                        </div>
-                    </div>`;
-                    productsContainer.innerHTML += cardHTML;
-                });
-            })
-            .catch(error => console.error('Error:', error));
-
-        function showProductModal(title, price) {
-            document.getElementById('modalBody').innerHTML = `
-                <p>Name: ${title}</p>
-                <p>Price: ₱${price}</p>`;
-            document.getElementById('paymentLink').href = `admin/payment/payment.php?productName=${encodeURIComponent(title)}&price=${encodeURIComponent(price)}`;
-            $('#productModal').modal('show');
-        }
-
-        let cart = {};
-
-        function addToCart(productId) {
-            if (cart[productId]) {
-                cart[productId]++;
-            } else {
-                cart[productId] = 1;
-            }
-            displayCart();
-        }
-
-        function displayCart() {
-            const cartContainer = document.getElementById('cartContainer');
-            let cartHTML = '<h3>Cart</h3>';
-            for (const [productId, quantity] of Object.entries(cart)) {
-                cartHTML += `<p>Product ID: ${productId}, Quantity: ${quantity}</p>`;
-            }
-            cartContainer.innerHTML = cartHTML;
-        }
-    </script>
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 </body>
 </html>
